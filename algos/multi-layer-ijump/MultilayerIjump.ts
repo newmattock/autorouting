@@ -1,20 +1,37 @@
 import {
-  GeneralizedAstarAutorouter,
   type ConnectionSolveResult,
+  GeneralizedAstarAutorouter,
 } from "algos/infinite-grid-ijump-astar/v2/lib/GeneralizedAstar"
 import { getDistanceToOvercomeObstacle } from "algos/infinite-grid-ijump-astar/v2/lib/getDistanceToOvercomeObstacle"
 import type {
   Direction,
+  DirectionWithCollisionInfo,
+  Node,
   Point,
   PointWithObstacleHit,
-  Node,
-  DirectionWithCollisionInfo,
 } from "algos/infinite-grid-ijump-astar/v2/lib/types"
 import {
   distAlongDir,
   manDist,
   nodeName,
 } from "algos/infinite-grid-ijump-astar/v2/lib/util"
+import type { ConnectionWithGoalAlternatives } from "autorouting-dataset/lib/solver-utils/ConnectionWithAlternatives"
+import type {
+  SimpleRouteConnection,
+  SimpleRouteJson,
+} from "autorouting-dataset/lib/solver-utils/SimpleRouteJson"
+import {
+  getAlternativeGoalBoxes,
+  getConnectionWithAlternativeGoalBoxes,
+} from "autorouting-dataset/lib/solver-utils/getAlternativeGoalBoxes"
+import type { Obstacle } from "autorouting-dataset/lib/types"
+import type { LayerRef, PCBTrace } from "circuit-json"
+import {
+  type ConnectivityMap,
+  PcbConnectivityMap,
+} from "circuit-json-to-connectivity-map"
+import { nanoid } from "nanoid"
+import { ObstacleList3d } from "./ObstacleList3d"
 import type {
   Direction3d,
   DirectionWithCollisionInfo3d,
@@ -22,23 +39,6 @@ import type {
   Point3dWithObstacleHit,
 } from "./types"
 import { dirFromAToB, getLayerIndex, indexToLayer } from "./util"
-import type {
-  SimpleRouteConnection,
-  SimpleRouteJson,
-} from "autorouting-dataset/lib/solver-utils/SimpleRouteJson"
-import { ObstacleList3d } from "./ObstacleList3d"
-import type { Obstacle } from "autorouting-dataset/lib/types"
-import {
-  PcbConnectivityMap,
-  type ConnectivityMap,
-} from "circuit-json-to-connectivity-map"
-import type { ConnectionWithGoalAlternatives } from "autorouting-dataset/lib/solver-utils/ConnectionWithAlternatives"
-import { nanoid } from "nanoid"
-import type { LayerRef, PCBTrace } from "circuit-json"
-import {
-  getAlternativeGoalBoxes,
-  getConnectionWithAlternativeGoalBoxes,
-} from "autorouting-dataset/lib/solver-utils/getAlternativeGoalBoxes"
 
 export class MultilayerIjump extends GeneralizedAstarAutorouter {
   MAX_ITERATIONS: number = 500
@@ -490,12 +490,16 @@ export class MultilayerIjump extends GeneralizedAstarAutorouter {
           }
         }
         if (travelDir.wallDistance === Infinity) {
-          travelDirs3.push({
-            ...travelDir,
-            travelDistance: goalDistAlongTravelDir,
-            enterMarginCost: 0,
-            travelMarginCostFactor: 1,
-          })
+          // Only align with the goal along open space when this direction
+          // actually points toward the goal.
+          if (isGoalInTravelDir) {
+            travelDirs3.push({
+              ...travelDir,
+              travelDistance: goalDistAlongTravelDir,
+              enterMarginCost: 0,
+              travelMarginCostFactor: 1,
+            })
+          }
         } else if (travelDir.wallDistance > this.largestMargin) {
           for (const { margin, enterCost, travelCostFactor } of this
             .marginsWithCosts) {
